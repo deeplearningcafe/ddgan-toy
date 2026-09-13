@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from ddgan_toy.paths.sampling import (
+from paths.sampling import (
     q_sample_pairs,
     sample_posterior,
     forward_diffuse_step,

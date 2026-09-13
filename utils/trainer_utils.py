@@ -1,8 +1,8 @@
 import copy
 import torch
 import torch.optim as optim
-from ddgan_toy.models.mlp import GeneratorND, DiscriminatorND
-from ddgan_toy.paths.scheduler import (
+from models.mlp import GeneratorND, DiscriminatorND
+from paths.scheduler import (
     DDPMSchedule,
     LinearSchedule,
     CosineSchedule,

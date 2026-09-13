@@ -122,8 +122,6 @@ source venv/bin/activate
 # 3. Install core dependencies
 pip install -r requirements.txt
 
-# 4. Install repository in editable mode
-pip install -e .
 ```
 
 ---
@@ -135,7 +133,7 @@ All experiments are executed via `ddgan_toy/scripts/train.py`. Results, checkpoi
 ### 1. Reproducing Figure 6 (25-Gaussians Grid)
 Train a 4-step DD-GAN on a $5 \times 5$ Gaussian mixture grid to verify complete mode coverage without collapsed clusters:
 ```bash
-python -m ddgan_toy.scripts.train \
+python -m scripts.train \
     --dataset grid \
     --num_timesteps 4 \
     --scheduler linear \
@@ -152,7 +150,7 @@ python -m ddgan_toy.scripts.train \
 ### 2. Vanilla GAN Baseline (Mode Collapse Demonstration)
 Train an unconditional single-step vanilla GAN on the exact same dataset to observe classical mode dropping:
 ```bash
-python -m ddgan_toy.scripts.train \
+python -m scripts.train \
     --dataset grid \
     --vanilla_gan \
     --iterations 50000 \
@@ -166,7 +164,7 @@ python -m ddgan_toy.scripts.train \
 ### 3. Long-Tail & Imbalanced Density Benchmarks
 Evaluate performance under extreme probability imbalances (e.g., 10 modes along the x-axis with exponentially decaying probabilities $p_i \propto 2^{-(i+1)}$):
 ```bash
-python -m ddgan_toy.scripts.train \
+python -m scripts.train \
     --dataset gmm_long_tail \
     --num_timesteps 4 \
     --scheduler linear \
@@ -178,7 +176,7 @@ python -m ddgan_toy.scripts.train \
 ### 4. High-Dimensional Manifold Projection ($D > 2$)
 To test stability on high-dimensional data embedded along lower-dimensional manifolds, set `--projection_dim` to project 2D data into $N$-dimensional space via a random orthogonal matrix ($P \in \mathbb{R}^{D \times 2}$):
 ```bash
-python -m ddgan_toy.scripts.train \
+python -m scripts.train \
     --dataset pinwheel \
     --projection_dim 64 \
     --num_timesteps 4 \
@@ -190,13 +188,13 @@ python -m ddgan_toy.scripts.train \
 Compare clean data prediction against noise or velocity prediction targets:
 ```bash
 # Epsilon prediction
-python -m ddgan_toy.scripts.train \
+python -m scripts.train \
     --dataset grid \
     --pred_target eps \
     --save_path ./results/grid_pred_eps
 
 # Velocity (v) prediction
-python -m ddgan_toy.scripts.train \
+python -m scripts.train \
     --dataset grid \
     --pred_target v \
     --save_path ./results/grid_pred_v

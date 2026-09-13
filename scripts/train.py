@@ -4,8 +4,8 @@ import numpy as np
 import torch
 from torch.utils.data import DataLoader
 
-from ddgan_toy.data.dataset import Synthetic2DDataset
-from ddgan_toy.trainer import DDGANTrainer
+from data.dataset import Synthetic2DDataset
+from trainer import DDGANTrainer
 
 
 def set_seed(seed: int = 42):

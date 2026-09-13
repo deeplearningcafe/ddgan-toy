@@ -4,18 +4,18 @@ import numpy as np
 import torch
 from torch.utils.data import DataLoader
 
-from ddgan_toy.losses import DDGANLoss
-from ddgan_toy.paths.sampling import (
+from losses import DDGANLoss
+from paths.sampling import (
     sample_from_model,
     get_real_forward_trajectories,
 )
-from ddgan_toy.evaluation import (
+from evaluation import (
     compute_precision_recall,
     chamfer_distance,
     compute_curvature,
 )
-from ddgan_toy.utils.logging_utils import Logger
-from ddgan_toy.utils.trainer_utils import (
+from utils.logging_utils import Logger
+from utils.trainer_utils import (
     EMA,
     gpu_setup,
     build_models,
@@ -23,7 +23,7 @@ from ddgan_toy.utils.trainer_utils import (
     build_optimizers,
     compute_grad_norm,
 )
-from ddgan_toy.utils.visualization import (
+from utils.visualization import (
     plot_ground_truth_forward_process,
     plot_scatter_kde,
     plot_trajectories_and_samples,
@@ -49,13 +49,18 @@ class DDGANTrainer:
         self.pred_target = config.get("pred_target", "x0")
         self.eval_interval = config.get("eval_interval", 5000)
         self.log_interval = config.get("log_interval", 1000)
+        self.afd_weight = config.get("afd_weight", 0.0)
+        self.ema_decay = config.get("ema_decay", 0.999)
+        self.lr_d = config.get("lr_d", 1e-4)
+        self.lr_g = config.get("lr_g", 1e-4)
+        self.sched_name = config.get("scheduler_type", "ddpm")
 
         self.schedule = None
         self.fwd_coeffs = None
         self.pos_coeffs = None
         if not self.vanilla_gan:
             self.schedule = build_scheduler(
-                scheduler_type=config.get("scheduler_type", "ddpm"),
+                scheduler_type=self.sched_name,
                 num_timesteps=self.num_timesteps,
                 device=self.device,
                 beta_min=config.get("beta_min", 0.1),
@@ -75,20 +80,20 @@ class DDGANTrainer:
             vanilla_gan=self.vanilla_gan,
             device=self.device,
         )
-        self.ema_g = EMA(self.net_g, decay=config.get("ema_decay", 0.999))
+        self.ema_g = EMA(self.net_g, decay=self.ema_decay)
 
         self.opt_g, self.opt_d = build_optimizers(
             self.net_g,
             self.net_d,
-            lr_g=config.get("lr_g", 1e-4),
-            lr_d=config.get("lr_d", 4e-4),
+            lr_g=self.lr_g,
+            lr_d=self.lr_d,
         )
         self.loss_fn = DDGANLoss(
             fwd_coeffs=self.fwd_coeffs,
             pos_coeffs=self.pos_coeffs,
             num_timesteps=self.num_timesteps,
             r1_gamma=config.get("r1_gamma", 0.05),
-            afd_weight=config.get("afd_weight", 0.5),
+            afd_weight=self.afd_weight,
             pred_target=self.pred_target,
             vanilla_gan=self.vanilla_gan,
         )
@@ -151,9 +156,15 @@ class DDGANTrainer:
         }
 
     def train(self, dataset, dataloader: DataLoader, iterations: int):
+        mode_name = (
+            "Vanilla GAN" if self.vanilla_gan else f"DDGAN (T={self.num_timesteps})"
+        )
         logging.info(
-            f"Starting DDGAN: {iterations} steps | "
-            f"Data: {dataset.name} | AMP: {self.amp_enabled} ({self.dtype})"
+            f"Training {mode_name} with AFD={self.afd_weight}, {iterations} steps | "
+            f"EMA={self.ema_decay}, lr_d={self.lr_d}, lr_g={self.lr_g}"
+            f"| Data Dim: {self.data_dim} | "
+            f"Projection: {self.projection_dim > 2} | "
+            f"Schedule: {self.sched_name} | AMP: {self.amp_enabled} ({self.dtype})"
         )
 
         proj_mat = (
