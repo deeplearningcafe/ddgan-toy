@@ -210,7 +210,7 @@ class DDGANTrainer:
                 self.evaluate(dataset, proj_mat, step)
 
     def evaluate(self, dataset, proj_mat, step: int):
-        eval_samples = 5000
+        eval_samples = 2048
         raw_samples, gen_traj = sample_from_model(
             pos_coeffs=self.pos_coeffs,
             fwd_coeffs=self.fwd_coeffs,

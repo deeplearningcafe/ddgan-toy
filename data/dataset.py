@@ -79,6 +79,23 @@ class Synthetic2DDataset(Dataset):
             pts = np.einsum("ti,tij->tj", feats, rot)
             data = (pts - pts.mean(0)) / pts.std(0)
 
+        elif self.name in "chessboard":
+            # 4x4 [-2, 2] x [-2, 2] (8 active tiles)
+            active_tiles = [
+                (i, j) for i in range(4) for j in range(4) if (i + j) % 2 == 0
+            ]
+            tile_indices = np.random.choice(len(active_tiles), n_samples)
+            chosen_tiles = np.array(
+                [active_tiles[idx] for idx in tile_indices],
+                dtype=np.float32,
+            )
+            offsets = np.random.uniform(0.0, 1.0, size=(n_samples, 2)).astype(
+                np.float32
+            )
+            # Center grid to [-2, 2] across both dimensions
+            data = (chosen_tiles + offsets) - 2.0
+            data = (data - data.mean(0)) / data.std(0)
+
         else:
             raise ValueError(f"Unknown synthetic dataset: {self.name}")
 
