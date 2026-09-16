@@ -163,7 +163,7 @@ class DDGANTrainer:
             f"Training {mode_name} with AFD={self.afd_weight}, {iterations} steps | "
             f"EMA={self.ema_decay}, lr_d={self.lr_d}, lr_g={self.lr_g}"
             f"| Data Dim: {self.data_dim} | "
-            f"Projection: {self.projection_dim > 2} | "
+            f"Projection: {self.proj_dim > 2} | "
             f"Schedule: {self.sched_name} | AMP: {self.amp_enabled} ({self.dtype})"
         )
 

@@ -6,6 +6,12 @@ from paths.scheduler import (
     DDPMSchedule,
     LinearSchedule,
     CosineSchedule,
+    GVPSchedule,
+    PowerSchedule,
+    SigmoidSchedule,
+    KarrasVPSchedule,
+    GeometricSchedule,
+    LinearSNRSchedule,
 )
 
 
@@ -75,6 +81,7 @@ def build_scheduler(
     device: torch.device,
     beta_min: float = 0.1,
     beta_max: float = 20.0,
+    **kwargs,
 ):
     """Factory creating discrete diffusion schedule."""
     stype = scheduler_type.lower()
@@ -83,7 +90,21 @@ def build_scheduler(
     elif stype in ["linear", "fm", "flow_matching"]:
         return LinearSchedule(num_timesteps, device)
     elif stype == "cosine":
-        return CosineSchedule(num_timesteps, device)
+        return CosineSchedule(num_timesteps, device, **kwargs)
+    elif stype in ["gvp", "sit_gvp"]:
+        return GVPSchedule(num_timesteps, device, **kwargs)
+    elif stype in ["power", "quadratic", "cubic"]:
+        power = 2.0 if stype in ["power", "quadratic"] else 3.0
+        power = kwargs.pop("power", power)
+        return PowerSchedule(num_timesteps, device, power=power, **kwargs)
+    elif stype == "sigmoid":
+        return SigmoidSchedule(num_timesteps, device, **kwargs)
+    elif stype in ["karras", "edm", "karras_vp"]:
+        return KarrasVPSchedule(num_timesteps, device, **kwargs)
+    elif stype == "geometric":
+        return GeometricSchedule(num_timesteps, device, **kwargs)
+    elif stype in ["linear_snr", "snr_linear", "linear_amplitude"]:
+        return LinearSNRSchedule(num_timesteps, device)
     raise ValueError(f"Unknown scheduler type: {scheduler_type}")
 
 
