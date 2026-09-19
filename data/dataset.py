@@ -109,6 +109,10 @@ class Synthetic2DDataset(Dataset):
         else:
             raise ValueError(f"Unknown synthetic dataset: {self.name}")
 
+        # dataloader also shuffles
+        perm = np.random.permutation(len(data))
+        data = data[perm]
+
         data_tensor = torch.from_numpy(data).float()
         proj_mat = None
         if self.projection_dim > 2:

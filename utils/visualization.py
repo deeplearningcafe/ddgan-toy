@@ -13,8 +13,14 @@ def plot_ground_truth_forward_process(
     save_path: str = "forward_diffusion_evolution.png",
 ):
     """Visualizes forward signal degradation across discrete diffusion steps."""
-    n_pts = min(num_samples, data.shape[0])
-    x_0 = data[:n_pts].detach().clone()
+    total_pts = data.shape[0]
+    n_pts = min(num_samples, total_pts)
+    if total_pts > n_pts:
+        idx = torch.randperm(total_pts)[:n_pts]
+        x_0 = data[idx].detach().clone()
+    else:
+        x_0 = data[:n_pts].detach().clone()
+
     eps = torch.randn_like(x_0)
 
     alphas, sigmas, x_t_states = [], [], []

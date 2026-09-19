@@ -230,7 +230,11 @@ class DDGANTrainer:
             if proj_mat is not None
             else raw_samples.cpu().numpy()
         )
-        gt_high = dataset.data[:eval_samples]
+        # shuffle
+        total_gt = len(dataset.data)
+        n_eval_gt = min(eval_samples, total_gt)
+        gt_idx = torch.randperm(total_gt)[:n_eval_gt]
+        gt_high = dataset.data[gt_idx]
         gt_2d = (
             (gt_high @ dataset.proj_mat).numpy()
             if dataset.proj_mat is not None
