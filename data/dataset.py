@@ -96,6 +96,16 @@ class Synthetic2DDataset(Dataset):
             data = (chosen_tiles + offsets) - 2.0
             data = (data - data.mean(0)) / data.std(0)
 
+        elif self.name == "two_moons":
+            n_out = n_samples // 2
+            n_in = n_samples - n_out
+            theta_out = np.linspace(0, np.pi, n_out)
+            theta_in = np.linspace(0, np.pi, n_in)
+            outer_circ = np.stack([np.cos(theta_out), np.sin(theta_out)], 1)
+            inner_circ = np.stack([1.0 - np.cos(theta_in), 0.5 - np.sin(theta_in)], 1)
+            raw = np.vstack([outer_circ, inner_circ])
+            raw += np.random.randn(n_samples, 2) * 0.05
+            data = (raw - raw.mean(0)) / raw.std(0)
         else:
             raise ValueError(f"Unknown synthetic dataset: {self.name}")
 

@@ -318,3 +318,185 @@ class LinearSNRSchedule(BaseSchedule):
 
     def get_scheduler_type(self) -> str:
         return "linear_snr"
+
+
+# Rank schedulers
+class VPRankSchedule(BaseSchedule):
+    """Standard VP-SDE schedule under the rank experimental framework."""
+
+    def __init__(
+        self,
+        num_timesteps: int,
+        device: torch.device,
+        rate_min: float = 0.1,
+        rate_max: float = 20.0,
+    ):
+        self.rate_min = rate_min
+        self.rate_max = rate_max
+        super().__init__(num_timesteps, device)
+
+    def _compute_betas(self) -> torch.Tensor:
+        t = (
+            torch.arange(self.num_timesteps + 1, dtype=torch.float64)
+            / self.num_timesteps
+        )
+        h_l = self.rate_min + 0.5 * (self.rate_max - self.rate_min)
+        log_term = -0.5 * h_l
+        log_bar = -0.5 * (
+            self.rate_min * t + 0.5 * (self.rate_max - self.rate_min) * t.square()
+        )
+        log_bar[0], log_bar[-1] = 0.0, log_term
+        log_alpha = torch.cat([t.new_zeros(1), log_bar.diff()])
+        betas = -torch.expm1(2.0 * log_alpha)
+        betas = torch.clamp(betas, min=1e-5, max=0.999)
+        betas[0] = 1e-8
+        return betas.float()
+
+    def get_scheduler_type(self) -> str:
+        return f"vprank(rmin={self.rate_min},rmax={self.rate_max})"
+
+
+class VP5RankSchedule(BaseSchedule):
+    """Quintic power-warped VP schedule (u = t^power) from rank theory."""
+
+    def __init__(
+        self,
+        num_timesteps: int,
+        device: torch.device,
+        rate_min: float = 0.1,
+        rate_max: float = 20.0,
+        power: float = 5.0,
+    ):
+        self.rate_min = rate_min
+        self.rate_max = rate_max
+        self.power = power
+        super().__init__(num_timesteps, device)
+
+    def _compute_betas(self) -> torch.Tensor:
+        t = (
+            torch.arange(self.num_timesteps + 1, dtype=torch.float64)
+            / self.num_timesteps
+        )
+        u = t.pow(self.power)
+        h_l = self.rate_min + 0.5 * (self.rate_max - self.rate_min)
+        log_term = -0.5 * h_l
+        log_bar = -0.5 * (
+            self.rate_min * u + 0.5 * (self.rate_max - self.rate_min) * u.square()
+        )
+        log_bar[0], log_bar[-1] = 0.0, log_term
+        log_alpha = torch.cat([t.new_zeros(1), log_bar.diff()])
+        betas = -torch.expm1(2.0 * log_alpha)
+        betas = torch.clamp(betas, min=1e-5, max=0.999)
+        betas[0] = 1e-8
+        return betas.float()
+
+    def get_scheduler_type(self) -> str:
+        return f"vp5rank(power={self.power})"
+
+
+class LinealSDRankSchedule(BaseSchedule):
+    """Linear cumulative standard deviation schedule s_i = s_L * (i / L)."""
+
+    def __init__(
+        self,
+        num_timesteps: int,
+        device: torch.device,
+        rate_min: float = 0.1,
+        rate_max: float = 20.0,
+    ):
+        self.rate_min = rate_min
+        self.rate_max = rate_max
+        super().__init__(num_timesteps, device)
+
+    def _compute_betas(self) -> torch.Tensor:
+        t = (
+            torch.arange(self.num_timesteps + 1, dtype=torch.float64)
+            / self.num_timesteps
+        )
+        h_l = self.rate_min + 0.5 * (self.rate_max - self.rate_min)
+        log_term = -0.5 * h_l
+        s_l_sq = -np.expm1(-h_l)
+        log_bar = 0.5 * torch.log1p(-s_l_sq * t.square())
+        log_bar[0], log_bar[-1] = 0.0, log_term
+        log_alpha = torch.cat([t.new_zeros(1), log_bar.diff()])
+        betas = -torch.expm1(2.0 * log_alpha)
+        betas = torch.clamp(betas, min=1e-5, max=0.999)
+        betas[0] = 1e-8
+        return betas.float()
+
+    def get_scheduler_type(self) -> str:
+        return "lineal_sd_rank"
+
+
+class CosenoRankSchedule(BaseSchedule):
+    """Cosine schedule with 0.008 offset and terminal VP boundary matching."""
+
+    def __init__(
+        self,
+        num_timesteps: int,
+        device: torch.device,
+        rate_min: float = 0.1,
+        rate_max: float = 20.0,
+    ):
+        self.rate_min = rate_min
+        self.rate_max = rate_max
+        super().__init__(num_timesteps, device)
+
+    def _compute_betas(self) -> torch.Tensor:
+        t = (
+            torch.arange(self.num_timesteps + 1, dtype=torch.float64)
+            / self.num_timesteps
+        )
+        h_l = self.rate_min + 0.5 * (self.rate_max - self.rate_min)
+        log_term = -0.5 * h_l
+        th_0 = np.pi / 2.0 * 0.008 / 1.008
+        th_l = np.arccos(np.exp(log_term) * np.cos(th_0))
+        angle = torch.from_numpy(th_0 + t.numpy() * (th_l - th_0))
+        log_bar = angle.cos().log() - np.log(np.cos(th_0))
+        log_bar[0], log_bar[-1] = 0.0, log_term
+        log_alpha = torch.cat([t.new_zeros(1), log_bar.diff()])
+        betas = -torch.expm1(2.0 * log_alpha)
+        betas = torch.clamp(betas, min=1e-5, max=0.999)
+        betas[0] = 1e-8
+        return betas.float()
+
+    def get_scheduler_type(self) -> str:
+        return "coseno_rank"
+
+
+class LogSNRRankSchedule(BaseSchedule):
+    """Uniform log-SNR schedule across discrete denoising steps."""
+
+    def __init__(
+        self,
+        num_timesteps: int,
+        device: torch.device,
+        rate_min: float = 0.1,
+        rate_max: float = 20.0,
+        rho_1: float = 0.05,
+    ):
+        self.rate_min = rate_min
+        self.rate_max = rate_max
+        self.rho_1 = rho_1
+        super().__init__(num_timesteps, device)
+
+    def _compute_betas(self) -> torch.Tensor:
+        l = self.num_timesteps
+        t = torch.arange(l + 1, dtype=torch.float64) / l
+        h_l = self.rate_min + 0.5 * (self.rate_max - self.rate_min)
+        log_term = -0.5 * h_l
+        rho_l = np.sqrt(np.expm1(h_l))
+        v = torch.linspace(0.0, 1.0, l, dtype=torch.float64) if l > 1 else t.new_ones(1)
+        log_rho = (1.0 - v) * np.log(self.rho_1) + v * np.log(rho_l)
+        log_bar = torch.cat(
+            [t.new_zeros(1), -0.5 * torch.logaddexp(t.new_zeros(l), 2.0 * log_rho)]
+        )
+        log_bar[0], log_bar[-1] = 0.0, log_term
+        log_alpha = torch.cat([t.new_zeros(1), log_bar.diff()])
+        betas = -torch.expm1(2.0 * log_alpha)
+        betas = torch.clamp(betas, min=1e-5, max=0.999)
+        betas[0] = 1e-8
+        return betas.float()
+
+    def get_scheduler_type(self) -> str:
+        return f"logsnr_rank(rho_1={self.rho_1})"

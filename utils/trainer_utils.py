@@ -12,6 +12,11 @@ from paths.scheduler import (
     KarrasVPSchedule,
     GeometricSchedule,
     LinearSNRSchedule,
+    VPRankSchedule,
+    VP5RankSchedule,
+    LinealSDRankSchedule,
+    CosenoRankSchedule,
+    LogSNRRankSchedule,
 )
 
 
@@ -105,6 +110,26 @@ def build_scheduler(
         return GeometricSchedule(num_timesteps, device, **kwargs)
     elif stype in ["linear_snr", "snr_linear", "linear_amplitude"]:
         return LinearSNRSchedule(num_timesteps, device)
+    elif stype in ["vprank", "vp_rank"]:
+        return VPRankSchedule(
+            num_timesteps, device, rate_min=beta_min, rate_max=beta_max
+        )
+    elif stype in ["vp5rank", "vp5_rank", "vp5"]:
+        return VP5RankSchedule(
+            num_timesteps, device, rate_min=beta_min, rate_max=beta_max, **kwargs
+        )
+    elif stype in ["linealsdrank", "lineal_sd_rank", "lineal_sd"]:
+        return LinealSDRankSchedule(
+            num_timesteps, device, rate_min=beta_min, rate_max=beta_max
+        )
+    elif stype in ["cosenorank", "coseno_rank"]:
+        return CosenoRankSchedule(
+            num_timesteps, device, rate_min=beta_min, rate_max=beta_max
+        )
+    elif stype in ["logsnrrank", "logsnr_rank", "logsnr"]:
+        return LogSNRRankSchedule(
+            num_timesteps, device, rate_min=beta_min, rate_max=beta_max, **kwargs
+        )
     raise ValueError(f"Unknown scheduler type: {scheduler_type}")
 
 
