@@ -49,7 +49,7 @@ class DDGANLoss(nn.Module):
             grad_real = torch.autograd.grad(
                 outputs=d_real.sum(), inputs=x_real, create_graph=True
             )[0]
-            r1_pen = grad_real.pow(2).sum(dim=1).mean()
+            r1_pen = grad_real.pow(2).reshape(batch_size, -1).sum(dim=1).mean()
 
             with torch.no_grad():
                 z = torch.randn(batch_size, z_dim, device=device)
@@ -70,7 +70,7 @@ class DDGANLoss(nn.Module):
             grad_real = torch.autograd.grad(
                 outputs=d_real.sum(), inputs=x_t, create_graph=True
             )[0]
-            r1_pen = grad_real.pow(2).sum(dim=1).mean()
+            r1_pen = grad_real.pow(2).reshape(batch_size, -1).sum(dim=1).mean()
 
             with torch.no_grad():
                 z = torch.randn(batch_size, z_dim, device=device)

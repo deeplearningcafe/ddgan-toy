@@ -3,6 +3,7 @@ import logging
 import numpy as np
 import torch
 from torch.utils.data import DataLoader
+from torchvision.utils import save_image
 
 from losses import DDGANLoss
 from paths.sampling import (
@@ -54,6 +55,7 @@ class DDGANTrainer:
         self.lr_d = config.get("lr_d", 1e-4)
         self.lr_g = config.get("lr_g", 1e-4)
         self.sched_name = config.get("scheduler_type", "ddpm")
+        self.is_image = config.get("is_image", False)
 
         self.schedule = None
         self.fwd_coeffs = None
@@ -69,9 +71,14 @@ class DDGANTrainer:
             self.fwd_coeffs = self.schedule.fwd
             self.pos_coeffs = self.schedule.pos
 
-        self.proj_dim = config.get("projection_dim", 0)
-        self.data_dim = self.proj_dim if self.proj_dim > 2 else 2
-        self.z_dim = max(2, self.data_dim // 2) if self.proj_dim > 2 else 2
+        if self.is_image:
+            self.data_dim = config.get("data_shape", (1, 32, 32))
+            self.z_dim = config.get("z_dim", 100)
+            self.proj_dim = 0
+        else:
+            self.proj_dim = config.get("projection_dim", 0)
+            self.data_dim = self.proj_dim if self.proj_dim > 2 else 2
+            self.z_dim = max(2, self.data_dim // 2) if self.proj_dim > 2 else 2
 
         self.net_g, self.net_d = build_models(
             data_dim=self.data_dim,
@@ -79,6 +86,7 @@ class DDGANTrainer:
             hidden_dim=config.get("hidden_dim", 512),
             vanilla_gan=self.vanilla_gan,
             device=self.device,
+            is_image=self.is_image,
         )
         self.ema_g = EMA(self.net_g, decay=self.ema_decay)
 
@@ -162,7 +170,7 @@ class DDGANTrainer:
         logging.info(
             f"Training {mode_name} with AFD={self.afd_weight}, {iterations} steps | "
             f"EMA={self.ema_decay}, lr_d={self.lr_d}, lr_g={self.lr_g}"
-            f"| Data Dim: {self.data_dim} | "
+            f"Image: {self.is_image} | Dim: {self.data_dim} | "
             f"Projection: {self.proj_dim > 2} | "
             f"Schedule: {self.sched_name} | AMP: {self.amp_enabled} ({self.dtype})"
         )
@@ -171,7 +179,7 @@ class DDGANTrainer:
             dataset.proj_mat.to(self.device) if dataset.proj_mat is not None else None
         )
 
-        if not self.vanilla_gan:
+        if not self.vanilla_gan and not self.is_image:
             plot_ground_truth_forward_process(
                 data=dataset.data,
                 fwd_coeffs=self.fwd_coeffs,
@@ -210,6 +218,34 @@ class DDGANTrainer:
                 self.evaluate(dataset, proj_mat, step)
 
     def evaluate(self, dataset, proj_mat, step: int):
+        if self.is_image:
+            num_eval = 64
+            samples = sample_from_model(
+                pos_coeffs=self.pos_coeffs,
+                fwd_coeffs=self.fwd_coeffs,
+                net_g=self.ema_g.shadow,
+                num_timesteps=self.num_timesteps,
+                num_samples=num_eval,
+                data_dim=self.data_dim,
+                z_dim=self.z_dim,
+                device=self.device,
+                pred_target=self.pred_target,
+                vanilla_gan=self.vanilla_gan,
+                return_trajectory=False,
+            )
+            grid_path = os.path.join(self.save_dir, f"sample_step_{step}.png")
+            save_image(
+                samples,
+                grid_path,
+                nrow=8,
+                normalize=True,
+                value_range=(-1.0, 1.0),
+            )
+            logging.info(f"--- Evaluation at Step {step} ---")
+            logging.info(f"Saved generated image grid to: {grid_path}")
+            logging.info("--------------------------------")
+            return
+
         eval_samples = 2048
         raw_samples, gen_traj = sample_from_model(
             pos_coeffs=self.pos_coeffs,

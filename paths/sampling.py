@@ -1,34 +1,41 @@
 import torch
 
 
+def _extract(coeffs: torch.Tensor, t: torch.Tensor, shape: torch.Size):
+    """Extracts coefficients and reshapes for arbitrary input dimensions."""
+    val = coeffs[t]
+    reshape_dims = [shape[0]] + [1] * (len(shape) - 1)
+    return val.view(*reshape_dims)
+
+
 def forward_diffuse_step(fwd_coeffs, x_t: torch.Tensor, t: torch.Tensor):
     """Simulates one Markov forward step q(x_{t+1} | x_t)."""
-    a_step = fwd_coeffs.a_s[t + 1].unsqueeze(1)
-    s_step = fwd_coeffs.sigmas[t + 1].unsqueeze(1)
+    a_step = _extract(fwd_coeffs.a_s, t + 1, x_t.shape)
+    s_step = _extract(fwd_coeffs.sigmas, t + 1, x_t.shape)
     return a_step * x_t + s_step * torch.randn_like(x_t)
 
 
 def q_sample_pairs(fwd_coeffs, x_start: torch.Tensor, t: torch.Tensor):
     """Samples true consecutive pair (x_t, x_{t+1}) from x_0."""
     noise_t = torch.randn_like(x_start)
-    a_t = fwd_coeffs.a_s_cum[t].unsqueeze(1)
-    s_t = fwd_coeffs.sigmas_cum[t].unsqueeze(1)
+    a_t = _extract(fwd_coeffs.a_s_cum, t, x_start.shape)
+    s_t = _extract(fwd_coeffs.sigmas_cum, t, x_start.shape)
     x_t = a_t * x_start + s_t * noise_t
 
     noise_step = torch.randn_like(x_start)
-    a_tp1 = fwd_coeffs.a_s[t + 1].unsqueeze(1)
-    s_tp1 = fwd_coeffs.sigmas[t + 1].unsqueeze(1)
+    a_tp1 = _extract(fwd_coeffs.a_s, t + 1, x_start.shape)
+    s_tp1 = _extract(fwd_coeffs.sigmas, t + 1, x_start.shape)
     x_tp1 = a_tp1 * x_t + s_tp1 * noise_step
     return x_t, x_tp1
 
 
 def sample_posterior(pos_coeffs, x_0: torch.Tensor, x_tp1: torch.Tensor, t):
     """Draws x_t ~ q(x_t | x_{t+1}, x_0). Zero noise added at t=0."""
-    c1 = pos_coeffs.coef1[t].unsqueeze(1)
-    c2 = pos_coeffs.coef2[t].unsqueeze(1)
+    c1 = _extract(pos_coeffs.coef1, t, x_tp1.shape)
+    c2 = _extract(pos_coeffs.coef2, t, x_tp1.shape)
     mean = c1 * x_0 + c2 * x_tp1
-    var = pos_coeffs.var[t].unsqueeze(1)
-    nonzero_mask = (t != 0).float().unsqueeze(1)
+    var = _extract(pos_coeffs.var, t, x_tp1.shape)
+    nonzero_mask = _extract((t != 0).float(), t, x_tp1.shape)
     return mean + nonzero_mask * torch.sqrt(var) * torch.randn_like(x_tp1)
 
 
@@ -43,8 +50,8 @@ def convert_pred_to_x0(
     if pred_target == "x0":
         return pred
 
-    a_cum = fwd_coeffs.a_s_cum[t + 1].unsqueeze(1).clamp(min=1e-5)
-    s_cum = fwd_coeffs.sigmas_cum[t + 1].unsqueeze(1)
+    a_cum = _extract(fwd_coeffs.a_s_cum, t + 1, x_tp1.shape).clamp(min=1e-5)
+    s_cum = _extract(fwd_coeffs.sigmas_cum, t + 1, x_tp1.shape)
 
     if pred_target == "eps":
         return (x_tp1 - s_cum * pred) / a_cum
@@ -70,6 +77,7 @@ def sample_from_model(
     """Executes iterative reverse denoising using the generator and EMA."""
     net_g.eval()
     trajectory = []
+    spatial_shape = (data_dim,) if isinstance(data_dim, int) else tuple(data_dim)
 
     if vanilla_gan:
         z = torch.randn(num_samples, z_dim, device=device)
@@ -77,7 +85,7 @@ def sample_from_model(
         if return_trajectory:
             trajectory = [samples]
     else:
-        x = torch.randn(num_samples, data_dim, device=device)
+        x = torch.randn(num_samples, *spatial_shape, device=device)
         if return_trajectory:
             trajectory.append(x.clone())
 

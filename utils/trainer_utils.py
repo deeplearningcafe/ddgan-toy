@@ -1,7 +1,10 @@
 import copy
 import torch
 import torch.optim as optim
+import random
+import numpy as np
 from models.mlp import GeneratorND, DiscriminatorND
+from models.image_models import GeneratorUNet2D, Discriminator2D
 from paths.scheduler import (
     DDPMSchedule,
     LinearSchedule,
@@ -18,6 +21,15 @@ from paths.scheduler import (
     CosenoRankSchedule,
     LogSNRRankSchedule,
 )
+
+
+def set_seed(seed: int = 42):
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed(seed)
+        torch.cuda.manual_seed_all(seed)
 
 
 class EMA:
@@ -64,19 +76,37 @@ def build_models(
     hidden_dim: int,
     vanilla_gan: bool,
     device: torch.device,
+    is_image: bool = False,
 ):
     """Instantiates G and D architectures."""
-    net_g = GeneratorND(
-        data_dim=data_dim,
-        z_dim=z_dim,
-        hidden_dim=hidden_dim,
-        vanilla_gan=vanilla_gan,
-    ).to(device)
-    net_d = DiscriminatorND(
-        data_dim=data_dim,
-        hidden_dim=hidden_dim,
-        vanilla_gan=vanilla_gan,
-    ).to(device)
+    if is_image:
+        in_channels = data_dim[0] if isinstance(data_dim, (tuple, list)) else 1
+        net_g = GeneratorUNet2D(
+            in_channels=in_channels,
+            out_channels=in_channels,
+            block_out_channels=[hidden_dim, hidden_dim * 2],
+            z_dim=z_dim,
+            vanilla_gan=vanilla_gan,
+        ).to(device)
+        net_d = Discriminator2D(
+            in_channels=in_channels,
+            block_out_channels=[hidden_dim, hidden_dim * 2],
+            vanilla_gan=vanilla_gan,
+        ).to(device)
+    else:
+        dim = data_dim if isinstance(data_dim, int) else 2
+        net_g = GeneratorND(
+            data_dim=dim,
+            z_dim=z_dim,
+            hidden_dim=hidden_dim,
+            vanilla_gan=vanilla_gan,
+        ).to(device)
+        net_d = DiscriminatorND(
+            data_dim=dim,
+            hidden_dim=hidden_dim,
+            vanilla_gan=vanilla_gan,
+        ).to(device)
+
     return net_g, net_d
 
 
