@@ -19,6 +19,7 @@ class DDGANLoss(nn.Module):
         num_timesteps: int = 4,
         r1_gamma: float = 0.05,
         afd_weight: float = 0.5,
+        rec_weight: float = 0.0,
         pred_target: str = "x0",
         vanilla_gan: bool = False,
     ):
@@ -28,6 +29,7 @@ class DDGANLoss(nn.Module):
         self.num_timesteps = num_timesteps
         self.r1_gamma = r1_gamma
         self.afd_weight = afd_weight
+        self.rec_weight = rec_weight
         self.pred_target = pred_target
         self.vanilla_gan = vanilla_gan
 
@@ -109,6 +111,7 @@ class DDGANLoss(nn.Module):
         x_tp1: torch.Tensor,
         t: torch.Tensor,
         z_dim: int,
+        x_0: torch.Tensor,
         batch_size: int,
         device: torch.device,
     ):
@@ -138,11 +141,13 @@ class DDGANLoss(nn.Module):
 
             x_tp1_rec = forward_diffuse_step(self.fwd_coeffs, x_t_fake_g, t)
             loss_afd = F.mse_loss(x_tp1_rec, x_tp1.detach())
-            loss_g = loss_adv + self.afd_weight * loss_afd
+            loss_rec = F.mse_loss(x_0_pred_g, x_0)
+            loss_g = loss_adv + self.afd_weight * loss_afd + loss_rec * self.rec_weight
 
         diagnostics = {
             "loss_g": loss_g,
             "loss_adv": loss_adv,
             "loss_afd": loss_afd,
+            "loss_rec": loss_rec,
         }
         return loss_g, diagnostics

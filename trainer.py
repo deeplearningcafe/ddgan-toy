@@ -138,6 +138,7 @@ class DDGANTrainer:
                 d_diag["x_tp1"],
                 d_diag["t"],
                 self.z_dim,
+                x_0,
                 batch_size,
                 self.device,
             )
@@ -157,6 +158,7 @@ class DDGANTrainer:
             "loss_g": loss_g.item(),
             "loss_adv": g_diag["loss_adv"].item(),
             "loss_afd": g_diag["loss_afd"].item(),
+            "loss_rec": g_diag["loss_rec"].item(),
             "d_real": d_diag["d_real_mean"].item(),
             "d_fake": d_diag["d_fake_mean"].item(),
             "grad_d": grad_d,
@@ -207,6 +209,7 @@ class DDGANTrainer:
                     f"G: {metrics['loss_g']:.3f} "
                     f"(Adv: {metrics['loss_adv']:.3f}, "
                     f"AFD: {metrics['loss_afd']:.3f}) | "
+                    f"Rec: {metrics['loss_rec']:.3f}) | "
                     f"R1: {metrics['r1']:.4f} | "
                     f"D(x): {metrics['d_real']:+.2f} | "
                     f"D(G): {metrics['d_fake']:+.2f} | "
