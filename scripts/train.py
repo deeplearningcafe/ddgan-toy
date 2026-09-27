@@ -13,12 +13,14 @@ def main():
     parser.add_argument("--num_timesteps", type=int, default=4)
     parser.add_argument("--scheduler", type=str, default="linear")
     parser.add_argument("--iterations", type=int, default=50000)
+    parser.add_argument("--num_samples", type=int, default=250000)
     parser.add_argument("--batch_size", type=int, default=512)
     parser.add_argument("--num_workers", type=int, default=2)
     parser.add_argument("--lr_g", type=float, default=1e-4)
     parser.add_argument("--lr_d", type=float, default=4e-4)
     parser.add_argument("--r1_gamma", type=float, default=0.05)
     parser.add_argument("--afd_weight", type=float, default=0.5)
+    parser.add_argument("--rec_weight", type=float, default=0.0)
     parser.add_argument("--pred_target", type=str, default="x0")
     parser.add_argument("--projection_dim", type=int, default=0)
     parser.add_argument("--vanilla_gan", action="store_true")
@@ -31,7 +33,7 @@ def main():
 
     dataset = Synthetic2DDataset(
         name=args.dataset,
-        n_samples=250000,
+        n_samples=args.num_samples,
         projection_dim=args.projection_dim,
     )
     dataloader = DataLoader(
@@ -54,6 +56,7 @@ def main():
         "lr_d": args.lr_d,
         "r1_gamma": args.r1_gamma,
         "afd_weight": args.afd_weight,
+        "rec_weight": args.rec_weight,
         "pred_target": args.pred_target,
         "projection_dim": args.projection_dim,
         "vanilla_gan": args.vanilla_gan,

@@ -51,6 +51,7 @@ class DDGANTrainer:
         self.eval_interval = config.get("eval_interval", 5000)
         self.log_interval = config.get("log_interval", 1000)
         self.afd_weight = config.get("afd_weight", 0.0)
+        self.rec_weight = config.get("rec_weight", 0.0)
         self.ema_decay = config.get("ema_decay", 0.999)
         self.lr_d = config.get("lr_d", 1e-4)
         self.lr_g = config.get("lr_g", 1e-4)
@@ -102,6 +103,7 @@ class DDGANTrainer:
             num_timesteps=self.num_timesteps,
             r1_gamma=config.get("r1_gamma", 0.05),
             afd_weight=self.afd_weight,
+            rec_weight=self.rec_weight,
             pred_target=self.pred_target,
             vanilla_gan=self.vanilla_gan,
         )
