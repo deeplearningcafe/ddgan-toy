@@ -1,6 +1,7 @@
 import numpy as np
 import torch
 from torch.utils.data import Dataset
+from PIL import Image, ImageDraw, ImageFont
 
 
 class Synthetic2DDataset(Dataset):
@@ -11,10 +12,14 @@ class Synthetic2DDataset(Dataset):
         name: str = "grid",
         n_samples: int = 250000,
         projection_dim: int = 0,
+        font_path: str = None,
+        char: str = "あ",
     ):
         super().__init__()
         self.name = name.lower()
         self.projection_dim = projection_dim
+        self.font_path = font_path
+        self.char = char
         self.data, self.proj_mat = self._generate_data(n_samples)
 
     def _generate_data(self, n_samples: int):
@@ -106,6 +111,48 @@ class Synthetic2DDataset(Dataset):
             raw = np.vstack([outer_circ, inner_circ])
             raw += np.random.randn(n_samples, 2) * 0.05
             data = (raw - raw.mean(0)) / raw.std(0)
+
+        elif self.name in ["hiragana", "あ"]:
+            data = self._generate_glyph_data(self.char, n_samples, self.font_path)
+
+        elif self.name in ["hiragana_finetune", "お"]:
+            data = self._generate_glyph_data("お", n_samples, self.font_path)
+
+        elif self.name == "sierpinski":
+            # Fractal chaos game: discrete affine transformations
+            vertices = np.array(
+                [[0.0, 1.0], [-0.866, -0.5], [0.866, -0.5]],
+                dtype=np.float32,
+            )
+            pts = np.zeros((n_samples, 2), dtype=np.float32)
+            curr = np.random.uniform(-0.5, 0.5, size=2).astype(np.float32)
+            choices = np.random.randint(0, 3, size=n_samples)
+            for i in range(n_samples):
+                curr = 0.5 * (curr + vertices[choices[i]])
+                pts[i] = curr
+            pts += np.random.normal(0.0, 0.015, size=(n_samples, 2))
+            data = (pts - pts.mean(0)) / pts.std(0)
+
+        elif self.name == "asymmetric_spiral":
+            # Multi-arm spiral with unequal arm lengths and density weighting
+            weights = np.array([0.60, 0.28, 0.12], dtype=np.float32)
+            arm_assignments = np.random.choice(3, size=n_samples, p=weights)
+            pts = np.zeros((n_samples, 2), dtype=np.float32)
+            for arm_idx in range(3):
+                mask = arm_assignments == arm_idx
+                count = int(np.sum(mask))
+                if count == 0:
+                    continue
+                # Varying arm length and rotational offset
+                max_theta = (2.0 + arm_idx * 1.2) * np.pi
+                theta = np.sqrt(np.random.rand(count)) * max_theta
+                rot_offset = arm_idx * (2.0 * np.pi / 3.0)
+                r = 1.5 * theta + 0.5
+                x = np.cos(theta + rot_offset) * r
+                y = np.sin(theta + rot_offset) * r
+                noise = np.random.randn(count, 2) * 0.15
+                pts[mask] = np.stack([x, y], axis=1) + noise
+            data = (pts - pts.mean(0)) / pts.std(0)
         else:
             raise ValueError(f"Unknown synthetic dataset: {self.name}")
 
@@ -121,6 +168,46 @@ class Synthetic2DDataset(Dataset):
             data_tensor = data_tensor @ proj_mat.T
 
         return data_tensor, proj_mat
+
+    def _generate_glyph_data(
+        self,
+        character: str,
+        n_samples: int,
+        font_path: str,
+        size: int = 512,
+    ) -> np.ndarray:
+        """Renders a character glyph and samples a continuous 2D point cloud."""
+        image = Image.new("L", (size, size), 0)
+        draw = ImageDraw.Draw(image)
+
+        font = ImageFont.truetype(font_path, size=int(size * 0.75))
+
+        bbox = draw.textbbox((0, 0), character, font=font)
+        text_w = bbox[2] - bbox[0]
+        text_h = bbox[3] - bbox[1]
+
+        x_pos = (size - text_w) // 2
+        y_pos = (size - text_h) // 2 - (bbox[1] // 2)
+        draw.text((x_pos, y_pos), character, font=font, fill=255)
+
+        img_np = np.array(image)
+        y_idxs, x_idxs = np.where(img_np > 128)
+
+        chosen = np.random.choice(len(x_idxs), n_samples, replace=True)
+        x_pts = x_idxs[chosen].astype(np.float32)
+        y_pts = (size - y_idxs[chosen]).astype(np.float32)
+
+        # uniform sub-pixel jitter
+        x_pts += np.random.uniform(-0.5, 0.5, size=n_samples)
+        y_pts += np.random.uniform(-0.5, 0.5, size=n_samples)
+
+        x_pts -= x_pts.mean()
+        y_pts -= y_pts.mean()
+        scale = max(x_pts.std(), y_pts.std())
+        x_pts /= scale
+        y_pts /= scale
+
+        return np.stack([x_pts, y_pts], axis=1)
 
     def __len__(self):
         return len(self.data)
